@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Signing</title>
+    <style>
+        :root {
+            --bg: #eef2f6;
+            --panel: #ffffff;
+            --ink: #1f2937;
+            --muted: #64748b;
+            --accent: #0e7490;
+            --accent-dark: #155e75;
+            --success: #166534;
+            --warn: #b45309;
+            --border: rgba(31, 41, 55, 0.14);
+            --shadow: 0 18px 44px rgba(15, 23, 42, 0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+            color: var(--ink);
+            background: var(--bg);
+        }
+
+        .signing-shell {
+            min-height: 100vh;
+            display: grid;
+            grid-template-rows: auto auto auto minmax(460px, 1fr) auto;
+            gap: 12px;
+            padding: 16px;
+        }
+
+        .topbar,
+        .consent-panel,
+        .signature-panel,
+        .message {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 12px 14px;
+        }
+
+        .doc-title {
+            display: grid;
+            gap: 3px;
+        }
+
+        .doc-title strong {
+            font-size: 1.05rem;
+        }
+
+        .muted {
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        button,
+        .button-link {
+            min-height: 44px;
+            border: 0;
+            border-radius: 8px;
+            padding: 10px 16px;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button.secondary,
+        .button-link.secondary {
+            background: linear-gradient(135deg, #334155, #1f2937);
+        }
+
+        button:disabled {
+            color: #64748b;
+            background: #d1d5db;
+            cursor: not-allowed;
+        }
+
+        .done-button {
+            min-width: 120px;
+        }
+
+        .consent-panel,
+        .signature-panel {
+            display: grid;
+            gap: 12px;
+            padding: 12px 14px;
+            overscroll-behavior: contain;
+        }
+
+        .consent-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-height: 44px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #f8fafc;
+            font-weight: 650;
+            line-height: 1.45;
+        }
+
+        .consent-row input {
+            width: 20px;
+            height: 20px;
+            flex: 0 0 auto;
+        }
+
+        .message {
+            padding: 11px 14px;
+            color: var(--warn);
+            background: #fff7ed;
+            border-color: rgba(180, 83, 9, 0.22);
+            font-weight: 650;
+        }
+
+        .message.success {
+            color: var(--success);
+            background: #f0fdf4;
+            border-color: rgba(22, 101, 52, 0.24);
+        }
+
+        .message[hidden] {
+            display: none;
+        }
+
+        .document-stage {
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #dfe6ee;
+            padding: 18px;
+        }
+
+        .pdf-frame {
+            display: block;
+            width: min(100%, 920px);
+            min-height: 1120px;
+            margin: 0 auto 18px;
+            border: 0;
+            background: #fff;
+            box-shadow: var(--shadow);
+        }
+
+        .signature-panel h2 {
+            margin: 0;
+            font-size: 1.1rem;
+        }
+
+        .signature-row {
+            display: grid;
+            gap: 8px;
+        }
+
+        .signature-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 190px;
+            border: 2px dashed rgba(31, 41, 55, 0.22);
+            border-radius: 8px;
+            background: #fff;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            cursor: crosshair;
+        }
+
+        @media (max-width: 720px) {
+            .signing-shell {
+                grid-template-rows: auto auto auto minmax(360px, 56vh) auto;
+                padding: 10px;
+            }
+
+            .topbar,
+            .signature-head {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .actions {
+                justify-content: stretch;
+            }
+
+            .actions button {
+                flex: 1 1 140px;
+            }
+
+            .document-stage {
+                padding: 10px;
+            }
+
+            .pdf-frame {
+                min-height: 960px;
+            }
+        }
+    </style>
+</head>
+<body>
+<main class="signing-shell">
+    <header class="topbar">
+        <div class="doc-title">
+            <strong id="documentCode">A1 Share Purchase Request - Murabaha</strong>
+            <span class="muted" id="documentStatus">A1 generated document loaded</span>
+        </div>
+        <div class="actions">
+            <a class="button-link secondary"
+               href="../generated/case-7-9771286543/A1_REQUEST-20260523180525012.pdf"
+               target="_blank"
+               rel="noopener noreferrer">Open Document</a>
+            <button type="button" class="done-button" id="doneButton" disabled>Done</button>
+            <button type="button" class="secondary" id="resetButton">End Session</button>
+        </div>
+    </header>
+
+    <section class="consent-panel" aria-label="Electronic consent">
+        <label class="consent-row">
+            <input type="checkbox" id="consentInput">
+            <span>I consent to use electronic records and signatures for this document.</span>
+        </label>
+    </section>
+
+    <div class="message" id="messageBox">Add a signature and check electronic consent to enable Done.</div>
+
+    <section class="document-stage" aria-label="Generated document">
+        <iframe class="pdf-frame"
+                src="../generated/case-7-9771286543/A1_REQUEST-20260523180525012.pdf"
+                title="A1 generated document"></iframe>
+    </section>
+
+    <section class="signature-panel" aria-label="Customer signature">
+        <div class="signature-row">
+            <div class="signature-head">
+                <h2>Customer Signature</h2>
+                <button type="button" class="secondary" id="clearButton">Clear</button>
+            </div>
+            <canvas id="signatureCanvas" aria-label="Signature pad"></canvas>
+        </div>
+    </section>
+</main>
+
+<script>
+    const storageKey = 'yyyy.customerSigningA1Unsigned';
+    const canvas = document.getElementById('signatureCanvas');
+    const consentInput = document.getElementById('consentInput');
+    const doneButton = document.getElementById('doneButton');
+    const clearButton = document.getElementById('clearButton');
+    const resetButton = document.getElementById('resetButton');
+    const messageBox = document.getElementById('messageBox');
+    const documentStatus = document.getElementById('documentStatus');
+    const consentPanel = document.querySelector('.consent-panel');
+    const documentStage = document.querySelector('.document-stage');
+    const signaturePanel = document.querySelector('.signature-panel');
+    const context = canvas.getContext('2d');
+
+    let drawing = false;
+    let hasSignature = false;
+    let signed = false;
+    let lastPoint = null;
+
+    function defaultState() {
+        return {
+            documentId: 'A1-' + new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+            consent: false,
+            signed: false,
+            signatureData: ''
+        };
+    }
+
+    function loadState() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(storageKey));
+            return saved && saved.documentId ? saved : defaultState();
+        } catch (error) {
+            return defaultState();
+        }
+    }
+
+    function saveState(extra = {}) {
+        const previous = loadState();
+        localStorage.setItem(storageKey, JSON.stringify({
+            ...previous,
+            consent: consentInput.checked,
+            signed,
+            signatureData: hasSignature ? canvas.toDataURL('image/png') : '',
+            ...extra
+        }));
+    }
+
+    function resizeCanvas() {
+        if (drawing) {
+            return;
+        }
+        const savedData = hasSignature ? canvas.toDataURL('image/png') : '';
+        const rect = canvas.getBoundingClientRect();
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const cssWidth = Math.max(Math.floor(rect.width), 320);
+        const cssHeight = Math.max(Math.floor(rect.height), 190);
+        canvas.width = cssWidth * ratio;
+        canvas.height = cssHeight * ratio;
+        canvas.style.width = '100%';
+        canvas.style.height = `${cssHeight}px`;
+        context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        context.lineWidth = 2.4;
+        context.strokeStyle = '#111827';
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        if (savedData) {
+            restoreSignature(savedData);
+        }
+    }
+
+    function restoreSignature(dataUrl) {
+        if (!dataUrl) {
+            return;
+        }
+        const image = new Image();
+        image.onload = () => {
+            context.drawImage(image, 0, 0, canvas.clientWidth, canvas.clientHeight);
+            hasSignature = true;
+            updateDoneState();
+        };
+        image.src = dataUrl;
+    }
+
+    function pointFor(event) {
+        const rect = canvas.getBoundingClientRect();
+        const source = event.touches ? event.touches[0] : event;
+        return {
+            x: source.clientX - rect.left,
+            y: source.clientY - rect.top
+        };
+    }
+
+    function startDrawing(event) {
+        event.preventDefault();
+        canvas.setPointerCapture?.(event.pointerId);
+        drawing = true;
+        document.body.style.overflow = 'hidden';
+        const point = pointFor(event);
+        lastPoint = point;
+        context.beginPath();
+        context.moveTo(point.x, point.y);
+        hasSignature = true;
+        signed = false;
+        updateDoneState();
+    }
+
+    function draw(event) {
+        event.preventDefault();
+        if (!drawing) {
+            return;
+        }
+        const point = pointFor(event);
+        if (!lastPoint || Math.abs(point.x - lastPoint.x) + Math.abs(point.y - lastPoint.y) > 0.5) {
+            lastPoint = point;
+        }
+        context.lineTo(point.x, point.y);
+        context.stroke();
+    }
+
+    function stopDrawing(event) {
+        if (!drawing) {
+            return;
+        }
+        if (event) {
+            event.preventDefault();
+            canvas.releasePointerCapture?.(event.pointerId);
+        }
+        drawing = false;
+        lastPoint = null;
+        document.body.style.overflow = '';
+        saveState();
+    }
+
+    function updateDoneState() {
+        doneButton.disabled = signed || !hasSignature || !consentInput.checked;
+        if (signed) {
+            consentPanel.hidden = true;
+            documentStage.hidden = true;
+            signaturePanel.hidden = true;
+            messageBox.hidden = false;
+            messageBox.className = 'message success';
+            messageBox.textContent = 'A1 Share Purchase Request - Murabaha was signed. Waiting for the next document.';
+            documentStatus.textContent = 'Waiting for the next document';
+        } else if (!hasSignature) {
+            consentPanel.hidden = false;
+            documentStage.hidden = false;
+            signaturePanel.hidden = false;
+            messageBox.hidden = false;
+            messageBox.className = 'message';
+            messageBox.textContent = 'Add a signature to enable Done.';
+            documentStatus.textContent = 'A1 generated document loaded';
+        } else if (!consentInput.checked) {
+            consentPanel.hidden = false;
+            documentStage.hidden = false;
+            signaturePanel.hidden = false;
+            messageBox.hidden = false;
+            messageBox.className = 'message';
+            messageBox.textContent = 'Check electronic consent to enable Done.';
+        } else {
+            consentPanel.hidden = false;
+            documentStage.hidden = false;
+            signaturePanel.hidden = false;
+            messageBox.hidden = true;
+            documentStatus.textContent = 'Ready to complete';
+        }
+    }
+
+    function clearSignature() {
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        hasSignature = false;
+        signed = false;
+        saveState({ signatureData: '', signed: false });
+        updateDoneState();
+    }
+
+    function reloadDocument() {
+        localStorage.removeItem(storageKey);
+        window.location.reload();
+    }
+
+    function boot() {
+        const state = loadState();
+        consentInput.checked = Boolean(state.consent);
+        signed = Boolean(state.signed);
+        resizeCanvas();
+        restoreSignature(state.signatureData);
+        hasSignature = Boolean(state.signatureData);
+        updateDoneState();
+    }
+
+    canvas.addEventListener('pointerdown', startDrawing);
+    canvas.addEventListener('pointermove', draw);
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointerleave', stopDrawing);
+    canvas.addEventListener('pointercancel', stopDrawing);
+    consentInput.addEventListener('change', () => {
+        signed = false;
+        saveState();
+        updateDoneState();
+    });
+    doneButton.addEventListener('click', () => {
+        signed = true;
+        saveState({ signed: true });
+        updateDoneState();
+    });
+    clearButton.addEventListener('click', clearSignature);
+    resetButton.addEventListener('click', reloadDocument);
+    window.addEventListener('resize', resizeCanvas);
+
+    boot();
+</script>
+</body>
+</html>
